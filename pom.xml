@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.flexibleexcel</groupId>
+    <groupId>io.github.rnrnd</groupId>
     <artifactId>flexible-excel</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
@@ -20,6 +20,31 @@
         <junit.version>5.9.3</junit.version>
         <lombok.version>1.18.26</lombok.version>
     </properties>
+
+    <!-- License 配置 -->
+    <licenses>
+        <license>
+            <name>Apache-2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <!-- 开发者信息 -->
+    <developers>
+        <developer>
+            <name>zarcleon</name>
+            <email>zarcleon@gmail.com</email>
+            <organization>Personal Open Source Project</organization>
+        </developer>
+    </developers>
+
+    <!-- SCM 配置 -->
+    <scm>
+        <url>https://github.com/rnrnd/flexible-excel</url>
+        <connection>scm:git:https://github.com/rnrnd/flexible-excel.git</connection>
+        <developerConnection>scm:git:https://github.com/rnrnd/flexible-excel.git</developerConnection>
+    </scm>
 
     <dependencies>
         <!-- Apache POI for Excel -->
@@ -98,6 +123,47 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <!-- GPG 签名插件 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>1.6</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Nexus Staging 发布插件（旧版，已弃用） -->
+            <!--
+            <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>1.6.13</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <serverId>ossrh</serverId>
+                    <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
+                    <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                </configuration>
+            </plugin>
+            -->
+
+            <!-- ✅ 新版 Central Publishing 插件 (Sonatype 官方推荐) -->
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.9.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                </configuration>
             </plugin>
         </plugins>
     </build>
