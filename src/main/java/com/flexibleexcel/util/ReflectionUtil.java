@@ -5,6 +5,9 @@ import com.flexibleexcel.exception.ExcelExportException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -153,6 +156,9 @@ public class ReflectionUtil {
                 type == Float.class ||
                 type == Boolean.class ||
                 type == Date.class ||
+                type == java.sql.Date.class ||
+                type == LocalDate.class ||
+                type == LocalDateTime.class ||
                 Number.class.isAssignableFrom(type) ||
                 CharSequence.class.isAssignableFrom(type);
     }
@@ -170,7 +176,49 @@ public class ReflectionUtil {
         if (value instanceof Date) {
             return formatDate((Date) value, dateFormat);
         }
+        if (value instanceof LocalDate) {
+            return formatLocalDate((LocalDate) value, dateFormat);
+        }
+        if (value instanceof LocalDateTime) {
+            return formatLocalDateTime((LocalDateTime) value, dateFormat);
+        }
         return value.toString();
+    }
+
+    /**
+     * 格式化LocalDate
+     * @param date LocalDate对象
+     * @param pattern 日期格式
+     * @return 格式化后的字符串
+     */
+    public static String formatLocalDate(LocalDate date, String pattern) {
+        if (date == null) {
+            return "";
+        }
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern);
+            return date.format(formatter);
+        } catch (Exception e) {
+            return date.toString();
+        }
+    }
+
+    /**
+     * 格式化LocalDateTime
+     * @param dateTime LocalDateTime对象
+     * @param pattern 日期格式
+     * @return 格式化后的字符串
+     */
+    public static String formatLocalDateTime(LocalDateTime dateTime, String pattern) {
+        if (dateTime == null) {
+            return "";
+        }
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern);
+            return dateTime.format(formatter);
+        } catch (Exception e) {
+            return dateTime.toString();
+        }
     }
 
     /**

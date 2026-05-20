@@ -15,6 +15,8 @@ import org.apache.poi.xssf.usermodel.*;
 import java.io.File;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -556,7 +558,7 @@ public class ExcelExporter {
 
                     currentColumn += listInfo.columnSpan;
                 } else {
-                    // 不展开，主表头跨两行
+                    // 不展开，主表头跨两行（合并第0行和第1行的单元格）
                     XSSFCell mainCell = mainHeaderRow.createCell(currentColumn);
                     mainCell.setCellValue(getHeaderText(field));
                     applyNestedMainHeaderStyle(mainCell, config, field.getExcel());
@@ -565,10 +567,14 @@ public class ExcelExporter {
                     subCell.setCellValue("");
                     applyNestedSubHeaderStyle(subCell);
 
+                    // 合并主表头和次级表头的单元格
+                    CellRangeAddress mergeRegion = new CellRangeAddress(0, 1, currentColumn, currentColumn);
+                    sheet.addMergedRegion(mergeRegion);
+
                     currentColumn++;
                 }
             } else {
-                // 普通字段 - 主表头跨两行
+                // 普通字段 - 主表头跨两行（合并第0行和第1行的单元格）
                 XSSFCell mainCell = mainHeaderRow.createCell(currentColumn);
                 mainCell.setCellValue(getHeaderText(field));
                 applyNestedMainHeaderStyle(mainCell, config, field.getExcel());
@@ -576,6 +582,10 @@ public class ExcelExporter {
                 XSSFCell subCell = subHeaderRow.createCell(currentColumn);
                 subCell.setCellValue("");
                 applyNestedSubHeaderStyle(subCell);
+
+                // 合并主表头和次级表头的单元格，让普通字段的表头跨两行显示
+                CellRangeAddress mergeRegion = new CellRangeAddress(0, 1, currentColumn, currentColumn);
+                sheet.addMergedRegion(mergeRegion);
 
                 currentColumn++;
             }
@@ -947,6 +957,12 @@ public class ExcelExporter {
             if (excel != null) {
                 if (value instanceof Date) {
                     return ReflectionUtil.formatDate((Date) value, excel.dateFormat());
+                }
+                if (value instanceof LocalDate) {
+                    return ReflectionUtil.formatLocalDate((LocalDate) value, excel.dateFormat());
+                }
+                if (value instanceof LocalDateTime) {
+                    return ReflectionUtil.formatLocalDateTime((LocalDateTime) value, excel.dateFormat());
                 }
                 if (value instanceof Number && !excel.numberFormat().isEmpty()) {
                     return ReflectionUtil.formatNumber(value, excel.numberFormat());

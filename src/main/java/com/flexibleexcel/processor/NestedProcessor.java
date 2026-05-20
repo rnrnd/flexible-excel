@@ -1,11 +1,12 @@
 package com.flexibleexcel.processor;
 
 import com.flexibleexcel.annotation.Excel;
-import com.flexibleexcel.core.ExcelContext;
 import com.flexibleexcel.core.ExcelContext.ExportField;
 import com.flexibleexcel.util.ReflectionUtil;
 
 import java.lang.reflect.Field;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -147,6 +148,8 @@ public class NestedProcessor {
                 type == Boolean.class ||
                 type == Date.class ||
                 type == java.sql.Date.class ||
+                type == LocalDate.class ||
+                type == LocalDateTime.class ||
                 Number.class.isAssignableFrom(type) ||
                 CharSequence.class.isAssignableFrom(type);
     }
