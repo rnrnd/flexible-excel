@@ -11,6 +11,7 @@
 
     <name>Flexible Excel</name>
     <description>灵活的Excel导出Maven插件，支持复杂数据结构的智能展开和单元格合并</description>
+    <url>https://github.com/rnrnd/flexible-excel</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -135,7 +136,12 @@
                 <configuration>
                     <encoding>UTF-8</encoding>
                     <charset>UTF-8</charset>
-                    <skip>true</skip>
+                    <author>false</author>
+                    <source>1.8</source>
+                    <doclint>none</doclint>
+                    <links>
+                        <link>https://docs.oracle.com/javase/8/docs/api/</link>
+                    </links>
                 </configuration>
                 <executions>
                     <execution>
