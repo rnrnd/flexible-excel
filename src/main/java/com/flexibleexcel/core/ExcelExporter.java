@@ -1305,27 +1305,6 @@ public class ExcelExporter {
     }
 
     /**
-     * 将十六进制颜色字符串转换为short（兼容旧方法）
-     */
-    private short hexToColor(String hex) {
-        if (hex == null || hex.isEmpty()) {
-            return IndexedColors.WHITE.getIndex();
-        }
-        try {
-            String color = hex.replace("#", "");
-            if (color.length() == 6) {
-                int r = Integer.parseInt(color.substring(0, 2), 16);
-                int g = Integer.parseInt(color.substring(2, 4), 16);
-                int b = Integer.parseInt(color.substring(4, 6), 16);
-                return new XSSFColor(new java.awt.Color(r, g, b), null).getIndex();
-            }
-        } catch (Exception e) {
-            // 忽略
-        }
-        return IndexedColors.WHITE.getIndex();
-    }
-
-    /**
      * 转换水平对齐方式
      */
     private HorizontalAlignment convertHorizontalAlign(Excel.HorizontalAlign align) {

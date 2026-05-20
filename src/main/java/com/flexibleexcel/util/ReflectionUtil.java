@@ -3,7 +3,6 @@ package com.flexibleexcel.util;
 import com.flexibleexcel.exception.ExcelExportException;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,62 +27,6 @@ public class ReflectionUtil {
         } catch (IllegalAccessException e) {
             throw new ExcelExportException("无法访问字段: " + field.getName(), e);
         }
-    }
-
-    /**
-     * 通过getter方法获取字段值
-     * @param obj 对象实例
-     * @param fieldName 字段名
-     * @return 字段值
-     */
-    public static Object getValueByGetter(Object obj, String fieldName) {
-        try {
-            String getterName = "get" + capitalize(fieldName);
-            Method getter = obj.getClass().getMethod(getterName);
-            return getter.invoke(obj);
-        } catch (Exception e) {
-            // 尝试直接访问字段
-            try {
-                Field field = findField(obj.getClass(), fieldName);
-                if (field != null) {
-                    field.setAccessible(true);
-                    return field.get(obj);
-                }
-            } catch (Exception ex) {
-                // ignore
-            }
-            return null;
-        }
-    }
-
-    /**
-     * 首字母大写
-     * @param str 输入字符串
-     * @return 首字母大写后的字符串
-     */
-    public static String capitalize(String str) {
-        if (str == null || str.isEmpty()) {
-            return str;
-        }
-        return Character.toUpperCase(str.charAt(0)) + str.substring(1);
-    }
-
-    /**
-     * 查找字段（包括父类）
-     * @param clazz 类
-     * @param fieldName 字段名
-     * @return 字段，找不到返回null
-     */
-    public static Field findField(Class<?> clazz, String fieldName) {
-        Class<?> current = clazz;
-        while (current != null && current != Object.class) {
-            try {
-                return current.getDeclaredField(fieldName);
-            } catch (NoSuchFieldException e) {
-                current = current.getSuperclass();
-            }
-        }
-        return null;
     }
 
     /**
@@ -140,27 +83,6 @@ public class ReflectionUtil {
             }
         }
         return value.toString();
-    }
-
-    /**
-     * 判断是否为简单类型
-     * @param type 要判断的类型
-     * @return 是否为简单类型
-     */
-    public static boolean isSimpleType(Class<?> type) {
-        return type.isPrimitive() ||
-                type == String.class ||
-                type == Integer.class ||
-                type == Long.class ||
-                type == Double.class ||
-                type == Float.class ||
-                type == Boolean.class ||
-                type == Date.class ||
-                type == java.sql.Date.class ||
-                type == LocalDate.class ||
-                type == LocalDateTime.class ||
-                Number.class.isAssignableFrom(type) ||
-                CharSequence.class.isAssignableFrom(type);
     }
 
     /**
@@ -221,19 +143,4 @@ public class ReflectionUtil {
         }
     }
 
-    /**
-     * 将Map的entry转换为键值对列表
-     * @param map 输入的Map
-     * @return 键值对列表
-     */
-    public static List<Map.Entry<Object, Object>> mapToEntryList(Map<?, ?> map) {
-        if (map == null) {
-            return Collections.emptyList();
-        }
-        List<Map.Entry<Object, Object>> entries = new ArrayList<>();
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-            entries.add(new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
-        }
-        return entries;
-    }
 }
