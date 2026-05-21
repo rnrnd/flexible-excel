@@ -132,7 +132,7 @@ public class ExcelExporter {
             for (SheetData sheetData : sheetDataList) {
                 // 为每个Sheet创建上下文
                 this.context = ExcelContext.create(sheetData.getClazz(), sheetData.getDataList());
-                this.nestedFieldInfos = collectNestedFieldInfos(sheetData.getDataList());
+                this.nestedFieldInfos = collectNestedFieldInfos();
                 this.listFieldInfos = collectListFieldInfos();
 
                 ExcelConfig config = sheetData.getClazz().getAnnotation(ExcelConfig.class);
@@ -204,7 +204,7 @@ public class ExcelExporter {
             this.context = ExcelContext.create(clazz, dataList);
 
             // 收集嵌套字段信息
-            this.nestedFieldInfos = collectNestedFieldInfos(dataList);
+            this.nestedFieldInfos = collectNestedFieldInfos();
             this.listFieldInfos = collectListFieldInfos();
 
             // 获取配置
@@ -242,16 +242,16 @@ public class ExcelExporter {
     }
 
     /**
-     * 收集嵌套字段信息
+     * 收集嵌套字段信息（递归收集所有层级的嵌套信息）
      */
-    private List<NestedProcessor.NestedFieldInfo> collectNestedFieldInfos(List<?> dataList) {
+    private List<NestedProcessor.NestedFieldInfo> collectNestedFieldInfos() {
         List<NestedProcessor.NestedFieldInfo> infos = new ArrayList<>();
         int currentColumn = 0;
 
         for (ExportField field : context.getExportFields()) {
             if (field.isNested() && field.getExcel().nested() == Excel.NestedMode.HORIZONTAL) {
-                NestedProcessor.NestedFieldInfo info = NestedProcessor.buildNestedFieldInfo(field, currentColumn, dataList);
-                infos.add(info);
+                NestedProcessor.NestedFieldInfo info = NestedProcessor.buildNestedFieldInfo(field, currentColumn);
+                addAllNestedInfos(infos, info);
                 currentColumn += info.columnSpan;
             } else {
                 currentColumn++;
@@ -259,6 +259,20 @@ public class ExcelExporter {
         }
 
         return infos;
+    }
+
+    /**
+     * 递归将所有嵌套字段信息添加到列表中（用于平铺查找）
+     */
+    private void addAllNestedInfos(List<NestedProcessor.NestedFieldInfo> infos, NestedProcessor.NestedFieldInfo info) {
+        infos.add(info);
+        if (info.columns != null) {
+            for (NestedProcessor.NestedFieldInfo.NestedColumn col : info.columns) {
+                if (col.isNested()) {
+                    addAllNestedInfos(infos, col.nestedInfo);
+                }
+            }
+        }
     }
 
     /**
@@ -324,7 +338,55 @@ public class ExcelExporter {
 
         return info;
     }
-    
+
+    /**
+     * 递归写入嵌套对象的数据（支持任意嵌套深度）
+     *
+     * @param sheet        工作表
+     * @param data         父级数据对象
+     * @param nestedInfo   嵌套字段信息（树形结构）
+     * @param currentRow   当前行
+     * @param currentColumn 当前列
+     * @return 下一个可用列索引
+     */
+    private int writeNestedDataRecursive(XSSFSheet sheet, Object data,
+                                         NestedProcessor.NestedFieldInfo nestedInfo,
+                                         int currentRow, int currentColumn) {
+        Object nestedObj = null;
+        try {
+            nestedObj = ReflectionUtil.getFieldValue(data, nestedInfo.parentField.getField());
+        } catch (Exception e) {
+            // ignore
+        }
+
+        int col = currentColumn;
+        for (NestedProcessor.NestedFieldInfo.NestedColumn colDef : nestedInfo.columns) {
+            if (colDef.isNested()) {
+                if (nestedObj != null) {
+                    col = writeNestedDataRecursive(sheet, nestedObj, colDef.nestedInfo, currentRow, col);
+                } else {
+                    for (int i = 0; i < colDef.leafColumnSpan; i++) {
+                        XSSFCell cell = ensureRowAndGetCell(sheet, currentRow, col);
+                        cell.setCellValue("");
+                        applyCellStyle(cell, nestedInfo.parentField.getExcel());
+                        col++;
+                    }
+                }
+            } else {
+                XSSFCell cell = ensureRowAndGetCell(sheet, currentRow, col);
+                String value = "";
+                if (nestedObj != null) {
+                    Object fieldValue = ReflectionUtil.getFieldValue(nestedObj, colDef.field.getField());
+                    value = fieldValue != null ? fieldValue.toString() : "";
+                }
+                cell.setCellValue(value);
+                applyCellStyle(cell, nestedInfo.parentField.getExcel());
+                col++;
+            }
+        }
+        return col;
+    }
+
     /**
      * 检查是否为Java简单类型
      */
@@ -375,37 +437,6 @@ public class ExcelExporter {
             return field.getExcel().header();
         }
         return field.getField().getName();
-    }
-
-    /**
-     * 检查是否有嵌套字段
-     */
-    private boolean hasNestedFields() {
-        for (ExportField field : context.getExportFields()) {
-            if (field.isNested()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 检查是否有需要展开次级表头的List字段
-     */
-    private boolean hasListFieldsForExpand() {
-        return listFieldInfos != null && !listFieldInfos.isEmpty();
-    }
-
-    /**
-     * 检查是否有Map字段
-     */
-    private boolean hasMapFields() {
-        for (ExportField field : context.getExportFields()) {
-            if (field.isMap()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -598,19 +629,18 @@ public class ExcelExporter {
 
     /**
      * 递归写入表头字段
-     * @param sheet 工作表
-     * @param dataList 数据列表
-     * @param headerRows 表头行数组
+     *
+     * @param sheet        工作表
+     * @param dataList     数据列表
+     * @param headerRows   表头行数组
      * @param currentDepth 当前深度（0-based）
-     * @param config 配置
-     * @return 下一个可用列索引
+     * @param config       配置
      */
-    private int writeHeaderFields(XSSFSheet sheet, List<?> dataList, XSSFRow[] headerRows,
-                                  int currentDepth, ExcelConfig config) {
+    private void writeHeaderFields(XSSFSheet sheet, List<?> dataList, XSSFRow[] headerRows,
+                                   int currentDepth, ExcelConfig config) {
         int currentColumn = 0;
 
         for (ExportField field : context.getExportFields()) {
-            int fieldDepth = calculateFieldDepth(field, 1);
             int rowSpan = maxHeaderDepth - currentDepth;  // 该字段需要跨越的行数
 
             if (field.isMap()) {
@@ -643,37 +673,22 @@ public class ExcelExporter {
                 currentColumn += columnSpan;
 
             } else if (field.isNested()) {
-                // 嵌套对象类型
                 NestedProcessor.NestedFieldInfo nestedInfo = getNestedFieldInfo(field);
 
-                // 在当前深度行写入主表头
-                XSSFCell mainCell = headerRows[currentDepth].createCell(currentColumn);
-                String parentHeader = (nestedInfo != null) ? nestedInfo.parentHeader : getHeaderText(field);
-                mainCell.setCellValue(parentHeader);
-                applyNestedMainHeaderStyle(mainCell, config, field.getExcel());
-
-                // 父表头只横向合并（只合并当前行，不跨越到子表头行）
-                if (nestedInfo != null && nestedInfo.columnSpan > 1) {
-                    CellRangeAddress mergeRegion = new CellRangeAddress(
-                            currentDepth, currentDepth, currentColumn, currentColumn + nestedInfo.columnSpan - 1);
-                    sheet.addMergedRegion(mergeRegion);
-                    applyHeaderBordersToMergedRegion(sheet, mergeRegion);
-                }
-
-                // 在下一行深度递归写入子表头
-                if (currentDepth + 1 < maxHeaderDepth && nestedInfo != null) {
-                    for (int i = 0; i < nestedInfo.columnSpan; i++) {
-                        XSSFCell subCell = headerRows[currentDepth + 1].createCell(currentColumn + i);
-                        if (i < nestedInfo.childHeaders.size()) {
-                            subCell.setCellValue(nestedInfo.childHeaders.get(i));
-                        } else {
-                            subCell.setCellValue("");
-                        }
-                        applyNestedSubHeaderStyle(subCell);
+                if (nestedInfo != null) {
+                    currentColumn = writeNestedHeaderRecursive(sheet, headerRows, nestedInfo, currentDepth, currentColumn, config);
+                } else {
+                    XSSFCell mainCell = headerRows[currentDepth].createCell(currentColumn);
+                    mainCell.setCellValue(getHeaderText(field));
+                    applyNestedMainHeaderStyle(mainCell, config, field.getExcel());
+                    if (rowSpan > 1) {
+                        CellRangeAddress mergeRegion = new CellRangeAddress(
+                                currentDepth, maxHeaderDepth - 1, currentColumn, currentColumn);
+                        sheet.addMergedRegion(mergeRegion);
+                        applyHeaderBordersToMergedRegion(sheet, mergeRegion);
                     }
+                    currentColumn++;
                 }
-
-                currentColumn += (nestedInfo != null ? nestedInfo.columnSpan : 1);
 
             } else if (field.isList()) {
                 // List类型
@@ -741,7 +756,62 @@ public class ExcelExporter {
             }
         }
 
-        return currentColumn;
+    }
+
+    /**
+     * 递归写入嵌套字段的表头（支持任意嵌套深度）
+     *
+     * @param sheet        工作表
+     * @param headerRows   表头行数组
+     * @param nestedInfo   嵌套字段信息（树形结构）
+     * @param currentDepth 当前深度（0-based）
+     * @param currentColumn 当前列索引
+     * @param config       配置
+     * @return 下一个可用列索引
+     */
+    private int writeNestedHeaderRecursive(XSSFSheet sheet, XSSFRow[] headerRows,
+                                           NestedProcessor.NestedFieldInfo nestedInfo,
+                                           int currentDepth, int currentColumn, ExcelConfig config) {
+        // 在当前深度行写入该嵌套字段的主表头
+        XSSFCell mainCell = headerRows[currentDepth].createCell(currentColumn);
+        mainCell.setCellValue(nestedInfo.parentHeader);
+        applyNestedMainHeaderStyle(mainCell, config, nestedInfo.parentField.getExcel());
+
+        // 主表头横向合并（只合并当前行）
+        if (nestedInfo.columnSpan > 1) {
+            CellRangeAddress mergeRegion = new CellRangeAddress(
+                    currentDepth, currentDepth, currentColumn, currentColumn + nestedInfo.columnSpan - 1);
+            sheet.addMergedRegion(mergeRegion);
+            applyHeaderBordersToMergedRegion(sheet, mergeRegion);
+        }
+
+        // 写入子列（如果有更深层的表头行）
+        if (currentDepth + 1 < maxHeaderDepth && nestedInfo.columns != null) {
+            int childCol = currentColumn;
+            for (NestedProcessor.NestedFieldInfo.NestedColumn col : nestedInfo.columns) {
+                if (col.isNested()) {
+                    // 子列也是嵌套对象，递归写入
+                    childCol = writeNestedHeaderRecursive(sheet, headerRows, col.nestedInfo,
+                            currentDepth + 1, childCol, config);
+                } else {
+                    // 简单子列，写入子表头
+                    XSSFCell subCell = headerRows[currentDepth + 1].createCell(childCol);
+                    subCell.setCellValue(col.header);
+                    applyNestedSubHeaderStyle(subCell);
+
+                    // 如果还有更多表头行，该简单列需要纵向合并到最深层
+                    if (currentDepth + 1 < maxHeaderDepth - 1) {
+                        CellRangeAddress mergeRegion = new CellRangeAddress(
+                                currentDepth + 1, maxHeaderDepth - 1, childCol, childCol);
+                        sheet.addMergedRegion(mergeRegion);
+                        applyHeaderBordersToMergedRegion(sheet, mergeRegion);
+                    }
+                    childCol++;
+                }
+            }
+        }
+
+        return currentColumn + nestedInfo.columnSpan;
     }
 
     /**
@@ -779,23 +849,10 @@ public class ExcelExporter {
                         }
                     }
                 } else if (field.isNested()) {
-                    // 嵌套对象类型
                     NestedProcessor.NestedFieldInfo nestedInfo = getNestedFieldInfo(field);
                     if (nestedInfo != null) {
-                        Object nestedObj = ReflectionUtil.getFieldValue(data, field.getField());
-                        for (int i = 0; i < nestedInfo.childHeaders.size(); i++) {
-                            XSSFCell cell = ensureRowAndGetCell(sheet, currentRow, currentColumn);
-                            String value = "";
-                            if (nestedObj != null && i < nestedInfo.childFields.size()) {
-                                Object fieldValue = ReflectionUtil.getFieldValue(nestedObj, nestedInfo.childFields.get(i).getField());
-                                value = fieldValue != null ? fieldValue.toString() : "";
-                            }
-                            cell.setCellValue(value);
-                            applyCellStyle(cell, field.getExcel());
-                            currentColumn++;
-                        }
+                        currentColumn = writeNestedDataRecursive(sheet, data, nestedInfo, currentRow, currentColumn);
                     } else {
-                        // 递归模式或其他情况
                         Object value = ReflectionUtil.getFieldValue(data, field.getField());
                         XSSFCell cell = ensureRowAndGetCell(sheet, currentRow, currentColumn);
                         cell.setCellValue(value != null ? value.toString() : "");
@@ -958,23 +1015,10 @@ public class ExcelExporter {
                         currentColumn++;
                     }
                 } else if (field.isNested()) {
-                    // 嵌套对象类型 - 对展开后的每个子列进行纵向合并
                     NestedProcessor.NestedFieldInfo nestedInfo = getNestedFieldInfo(field);
                     if (nestedInfo != null) {
-                        for (int i = 0; i < nestedInfo.childHeaders.size(); i++) {
-                            if (maxListSize > 1) {
-                                CellRangeAddress mergeRegion = new CellRangeAddress(
-                                        currentRow, currentRow + maxListSize - 1,
-                                        currentColumn, currentColumn
-                                );
-                                sheet.addMergedRegion(mergeRegion);
-                                // 为合并区域内所有单元格设置边框
-                                applyBordersToMergedRegion(sheet, mergeRegion);
-                            }
-                            currentColumn++;
-                        }
+                        currentColumn = applyNestedMergesRecursive(sheet, nestedInfo, currentRow, maxListSize, currentColumn);
                     } else {
-                        // 递归模式或其他情况，只有一列
                         if (maxListSize > 1) {
                             CellRangeAddress mergeRegion = new CellRangeAddress(
                                     currentRow, currentRow + maxListSize - 1,
@@ -1011,6 +1055,35 @@ public class ExcelExporter {
 
             currentRow += Math.max(maxListSize, 1);
         }
+    }
+
+    /**
+     * 递归应用嵌套字段的纵向合并（支持任意嵌套深度）
+     *
+     * @param sheet        工作表
+     * @param nestedInfo   嵌套字段信息
+     * @param currentRow   当前行
+     * @param maxListSize  最大List长度
+     * @param currentColumn 当前列
+     * @return 下一个可用列索引
+     */
+    private int applyNestedMergesRecursive(XSSFSheet sheet, NestedProcessor.NestedFieldInfo nestedInfo,
+                                           int currentRow, int maxListSize, int currentColumn) {
+        int col = currentColumn;
+        for (NestedProcessor.NestedFieldInfo.NestedColumn colDef : nestedInfo.columns) {
+            if (colDef.isNested()) {
+                col = applyNestedMergesRecursive(sheet, colDef.nestedInfo, currentRow, maxListSize, col);
+            } else {
+                if (maxListSize > 1) {
+                    CellRangeAddress mergeRegion = new CellRangeAddress(
+                            currentRow, currentRow + maxListSize - 1, col, col);
+                    sheet.addMergedRegion(mergeRegion);
+                    applyBordersToMergedRegion(sheet, mergeRegion);
+                }
+                col++;
+            }
+        }
+        return col;
     }
 
     /**
