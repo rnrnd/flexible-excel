@@ -11,12 +11,12 @@ import java.util.*;
 
 /**
  * 嵌套对象处理器
- * 处理嵌套对象的横向展开
+ * 处理嵌套对象的横向展开（支持任意嵌套深度）
  */
 public class NestedProcessor {
 
     /**
-     * 嵌套字段信息（包含主字段和子字段）
+     * 嵌套字段信息（支持递归嵌套结构）
      */
     public static class NestedFieldInfo {
         /**
@@ -25,7 +25,7 @@ public class NestedProcessor {
         public final ExportField parentField;
 
         /**
-         * 主表头文本
+         * 主表头文本（当前深度的表头）
          */
         public final String parentHeader;
 
@@ -35,60 +35,74 @@ public class NestedProcessor {
         public final int startColumn;
 
         /**
-         * 子字段列表（嵌套对象的可导出字段）
+         * 该嵌套字段占用的叶子列总数
+         */
+        public final int columnSpan;
+
+        /**
+         * 直接子列定义（出现在下一深度的列）
+         */
+        public final List<NestedColumn> columns;
+
+        /**
+         * 直接子字段列表（向后兼容，扁平视图）
          */
         public final List<ExportField> childFields;
 
         /**
-         * 次级表头文本列表
+         * 直接子表头文本列表（向后兼容，扁平视图）
          */
         public final List<String> childHeaders;
 
-        /**
-         * 该嵌套字段占据的列数
-         */
-        public final int columnSpan;
-
         public NestedFieldInfo(ExportField parentField, String parentHeader,
-                               int startColumn, List<ExportField> childFields,
+                               int startColumn, int columnSpan,
+                               List<NestedColumn> columns,
+                               List<ExportField> childFields,
                                List<String> childHeaders) {
             this.parentField = parentField;
             this.parentHeader = parentHeader;
             this.startColumn = startColumn;
+            this.columnSpan = columnSpan;
+            this.columns = columns;
             this.childFields = childFields;
             this.childHeaders = childHeaders;
-            this.columnSpan = childFields.size();
         }
-    }
 
-    /**
-     * 从数据列表中收集所有嵌套对象展开后的次级表头
-     *
-     * @param dataList 数据列表
-     * @param field    嵌套字段
-     * @return 所有次级表头的key列表（去重）
-     */
-    public static List<String> getAllChildHeaders(List<?> dataList, ExportField field) {
-        Set<String> headerSet = new LinkedHashSet<>();
+        /**
+         * 嵌套列定义
+         */
+        public static class NestedColumn {
+            /**
+             * 该列对应的字段
+             */
+            public final ExportField field;
 
-        for (Object data : dataList) {
-            try {
-                Object nestedObj = ReflectionUtil.getFieldValue(data, field.getField());
-                if (nestedObj == null) {
-                    continue;
-                }
+            /**
+             * 该列在当前深度的表头文本
+             */
+            public final String header;
 
-                List<ExportField> childFields = getChildFields(nestedObj.getClass());
-                for (ExportField childField : childFields) {
-                    String header = getChildHeader(childField);
-                    headerSet.add(header);
-                }
-            } catch (Exception e) {
-                // ignore
+            /**
+             * 该列占用的叶子列数（简单字段为1，嵌套字段为其展开后的列数）
+             */
+            public final int leafColumnSpan;
+
+            /**
+             * 如果该列本身也是嵌套对象，则包含其展开信息；否则为null
+             */
+            public final NestedFieldInfo nestedInfo;
+
+            public NestedColumn(ExportField field, String header, int leafColumnSpan, NestedFieldInfo nestedInfo) {
+                this.field = field;
+                this.header = header;
+                this.leafColumnSpan = leafColumnSpan;
+                this.nestedInfo = nestedInfo;
+            }
+
+            public boolean isNested() {
+                return nestedInfo != null;
             }
         }
-
-        return new ArrayList<>(headerSet);
     }
 
     /**
@@ -154,14 +168,13 @@ public class NestedProcessor {
     }
 
     /**
-     * 构建嵌套字段信息
+     * 构建嵌套字段信息（递归支持任意嵌套深度）
      *
      * @param field       主字段
      * @param startColumn 起始列
-     * @param dataList    数据列表
-     * @return 嵌套字段信息
+     * @return 嵌套字段信息（包含递归子结构）
      */
-    public static NestedFieldInfo buildNestedFieldInfo(ExportField field, int startColumn, List<?> dataList) {
+    public static NestedFieldInfo buildNestedFieldInfo(ExportField field, int startColumn) {
         String parentHeader;
         if (field.getExcel() != null && !field.getExcel().header().isEmpty()) {
             parentHeader = field.getExcel().header();
@@ -169,22 +182,30 @@ public class NestedProcessor {
             parentHeader = field.getField().getName();
         }
 
-        // 获取子字段
         List<ExportField> childFields = getChildFields(field.getField().getType());
 
-        // 收集所有次级表头
+        List<NestedFieldInfo.NestedColumn> columns = new ArrayList<>();
         List<String> childHeaders = new ArrayList<>();
-        if (field.getExcel().nested() == Excel.NestedMode.HORIZONTAL) {
-            // HORIZONTAL模式：收集所有数据中的次级表头
-            childHeaders = getAllChildHeaders(dataList, field);
-        } else {
-            // RECURSIVE模式：直接使用子字段的表头
-            for (ExportField childField : childFields) {
-                childHeaders.add(getChildHeader(childField));
+        int totalColumnSpan = 0;
+
+        for (ExportField childField : childFields) {
+            String childHeader = getChildHeader(childField);
+            childHeaders.add(childHeader);
+
+            if (childField.isNested() && childField.getExcel().nested() == Excel.NestedMode.HORIZONTAL) {
+                // 子字段也是嵌套对象，递归构建
+                NestedFieldInfo childNested = buildNestedFieldInfo(childField, startColumn + totalColumnSpan);
+                columns.add(new NestedFieldInfo.NestedColumn(childField, childHeader, childNested.columnSpan, childNested));
+                totalColumnSpan += childNested.columnSpan;
+            } else {
+                // 简单字段或不需要展开的字段
+                columns.add(new NestedFieldInfo.NestedColumn(childField, childHeader, 1, null));
+                totalColumnSpan += 1;
             }
         }
 
-        return new NestedFieldInfo(field, parentHeader, startColumn, childFields, childHeaders);
+        return new NestedFieldInfo(field, parentHeader, startColumn, totalColumnSpan,
+                                   columns, childFields, childHeaders);
     }
 
 }

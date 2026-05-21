@@ -106,7 +106,7 @@ public class ExcelExporterTest {
     }
 
     /**
-     * 测试复杂嵌套（同时包含List、Map和嵌套对象）
+     * 测试全类型导出（同时包含List、Map和嵌套对象）
      */
     @Test
     public void testAllTypesExport() {
@@ -119,6 +119,25 @@ public class ExcelExporterTest {
             System.out.println("全类型导出完成: " + new File(filePath).getAbsolutePath());
         } catch (Exception e) {
             System.err.println("全类型导出失败: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    /**
+     * 测试多层嵌套对象导出（3级嵌套）
+     */
+    @Test
+    public void testDeepNestedExport() {
+        try {
+            List<DeepNestedRecord> records = createDeepNestedData();
+            String filePath = "target/test-deep-nested-" + ts() + ".xlsx";
+
+            ExcelExporter.create().export(DeepNestedRecord.class, records, filePath);
+
+            System.out.println("多层嵌套导出完成: " + new File(filePath).getAbsolutePath());
+        } catch (Exception e) {
+            System.err.println("多层嵌套导出失败: " + e.getMessage());
             e.printStackTrace();
             throw e;
         }
@@ -142,7 +161,7 @@ public class ExcelExporterTest {
         @Excel(header = "邮箱", columnWidth = 25)
         private String email;
 
-        @Excel(header = "注册日期", columnWidth = 15, dateFormat = "yyyy-MM-dd")
+        @Excel(header = "注册日期", columnWidth = 15)
         private Date registerDate;
 
         @Excel(header = "状态", columnWidth = 10, backgroundColor = "#D9EAD3")
@@ -432,6 +451,65 @@ public class ExcelExporterTest {
         private String level;
     }
 
+    // ==================== 多层嵌套测试模型 ====================
+
+    /**
+     * 深层嵌套记录（3级嵌套）
+     */
+    @ExcelConfig(sheetName = "销售记录-多层嵌套")
+    @Data
+    @AllArgsConstructor
+    public static class DeepNestedRecord {
+        @Excel(header = "记录ID", columnWidth = 12)
+        private String recordId;
+
+        @Excel(header = "销售人员", columnWidth = 12)
+        private String salesperson;
+
+        @Excel(header = "客户信息", columnWidth = 60,
+              nested = Excel.NestedMode.HORIZONTAL,
+              nestedHeaderBgColor = "#4472C4")
+        private DeepCustomer customer;
+
+        @Excel(header = "备注", columnWidth = 20)
+        private String remarks;
+    }
+
+    /**
+     * 深层客户信息（包含嵌套联系方式）
+     */
+    @Data
+    @AllArgsConstructor
+    public static class DeepCustomer {
+        @Excel(header = "客户名称")
+        private String customerName;
+
+        @Excel(header = "联系方式", columnWidth = 40,
+              nested = Excel.NestedMode.HORIZONTAL,
+              nestedHeaderBgColor = "#70AD47",
+              nestedSubHeaderBgColor = "#E2EFDA")
+        private ContactDetail contactDetail;
+
+        @Excel(header = "客户等级")
+        private String level;
+    }
+
+    /**
+     * 联系方式详情（嵌套在客户信息中）
+     */
+    @Data
+    @AllArgsConstructor
+    public static class ContactDetail {
+        @Excel(header = "手机")
+        private String phone;
+
+        @Excel(header = "邮箱")
+        private String email;
+
+        @Excel(header = "QQ")
+        private String qq;
+    }
+
     // ==================== 嵌套对象测试数据生成 ====================
 
     private List<Student> createStudentData() {
@@ -494,6 +572,39 @@ public class ExcelExporterTest {
                 "销售员A",
                 new Customer("字节跳动", "400-800-0003", "北京市海淀区", "普通"),
                 items3,
+                ""
+        ));
+
+        return records;
+    }
+
+    private List<DeepNestedRecord> createDeepNestedData() {
+        List<DeepNestedRecord> records = new ArrayList<>();
+
+        records.add(new DeepNestedRecord(
+                "R001",
+                "销售员A",
+                new DeepCustomer("阿里巴巴",
+                        new ContactDetail("13800001111", "ali@example.com", "10001"),
+                        "VIP"),
+                "大客户订单"
+        ));
+
+        records.add(new DeepNestedRecord(
+                "R002",
+                "销售员B",
+                new DeepCustomer("腾讯科技",
+                        new ContactDetail("13900002222", "tencent@example.com", "20002"),
+                        "VIP"),
+                "企业采购"
+        ));
+
+        records.add(new DeepNestedRecord(
+                "R003",
+                "销售员A",
+                new DeepCustomer("字节跳动",
+                        new ContactDetail("13700003333", "bytedance@example.com", "30003"),
+                        "普通"),
                 ""
         ));
 
