@@ -3,9 +3,12 @@ package com.flexibleexcel;
 import com.flexibleexcel.annotation.Excel;
 import com.flexibleexcel.annotation.ExcelConfig;
 import com.flexibleexcel.core.ExcelExporter;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
@@ -13,13 +16,19 @@ import java.util.*;
  */
 public class ExcelExporterTest {
 
+    private static final SimpleDateFormat TS = new SimpleDateFormat("HHmmss");
+
+    private String ts() {
+        return TS.format(new Date());
+    }
+
     /**
      * 测试基本导出功能
      */
     @Test
-    public void testBasicExport() throws Exception {
+    public void testBasicExport() {
         List<User> users = createTestData();
-        String filePath = "target/test-basic.xlsx";
+        String filePath = "target/test-basic-" + ts() + ".xlsx";
 
         ExcelExporter.create().export(User.class, users, filePath);
 
@@ -30,9 +39,9 @@ public class ExcelExporterTest {
      * 测试List类型导出（纵向扩展）
      */
     @Test
-    public void testListExport() throws Exception {
+    public void testListExport() {
         List<Order> orders = createOrderData();
-        String filePath = "target/test-list.xlsx";
+        String filePath = "target/test-list-" + ts() + ".xlsx";
 
         ExcelExporter.create().export(Order.class, orders, filePath);
 
@@ -43,10 +52,10 @@ public class ExcelExporterTest {
      * 测试Map类型导出（横向扩展）
      */
     @Test
-    public void testMapExport() throws Exception {
+    public void testMapExport() {
         try {
             List<Product> products = createProductData();
-            String filePath = "target/test-map.xlsx";
+            String filePath = "target/test-map-" + ts() + ".xlsx";
 
             ExcelExporter.create().export(Product.class, products, filePath);
 
@@ -62,10 +71,10 @@ public class ExcelExporterTest {
      * 测试复杂场景（同时包含List和Map）
      */
     @Test
-    public void testComplexExport() throws Exception {
+    public void testComplexExport() {
         try {
             List<ComplexData> complexDataList = createComplexData();
-            String filePath = "target/test-complex.xlsx";
+            String filePath = "target/test-complex-" + ts() + ".xlsx";
 
             ExcelExporter.create().export(ComplexData.class, complexDataList, filePath);
 
@@ -81,10 +90,10 @@ public class ExcelExporterTest {
      * 测试嵌套对象导出（横向展开）
      */
     @Test
-    public void testNestedHorizontalExport() throws Exception {
+    public void testNestedHorizontalExport() {
         try {
             List<Student> students = createStudentData();
-            String filePath = "target/test-nested.xlsx";
+            String filePath = "target/test-nested-" + ts() + ".xlsx";
 
             ExcelExporter.create().export(Student.class, students, filePath);
 
@@ -100,10 +109,10 @@ public class ExcelExporterTest {
      * 测试复杂嵌套（同时包含List、Map和嵌套对象）
      */
     @Test
-    public void testAllTypesExport() throws Exception {
+    public void testAllTypesExport() {
         try {
             List<SalesRecord> records = createSalesRecordData();
-            String filePath = "target/test-all-types.xlsx";
+            String filePath = "target/test-all-types-" + ts() + ".xlsx";
 
             ExcelExporter.create().export(SalesRecord.class, records, filePath);
 
@@ -121,6 +130,8 @@ public class ExcelExporterTest {
      * 用户实体（基本字段）
      */
     @ExcelConfig(sheetName = "用户列表")
+    @Data
+    @AllArgsConstructor
     public static class User {
         @Excel(header = "姓名", columnWidth = 15, backgroundColor = "#E7E6E6", fontBold = true)
         private String name;
@@ -136,20 +147,14 @@ public class ExcelExporterTest {
 
         @Excel(header = "状态", columnWidth = 10, backgroundColor = "#D9EAD3")
         private String status;
-
-        public User(String name, Integer age, String email, Date registerDate, String status) {
-            this.name = name;
-            this.age = age;
-            this.email = email;
-            this.registerDate = registerDate;
-            this.status = status;
-        }
     }
 
     /**
      * 订单实体（包含List）
      */
     @ExcelConfig(sheetName = "订单列表")
+    @Data
+    @AllArgsConstructor
     public static class Order {
         @Excel(header = "订单号", columnWidth = 20)
         private String orderNo;
@@ -162,19 +167,13 @@ public class ExcelExporterTest {
 
         @Excel(header = "金额", columnWidth = 12)
         private Double amount;
-
-        public Order(String orderNo, String customerName, List<String> items, Double amount) {
-            this.orderNo = orderNo;
-            this.customerName = customerName;
-            this.items = items;
-            this.amount = amount;
-        }
     }
 
     /**
      * 产品实体（包含Map）
      */
     @ExcelConfig(sheetName = "产品信息")
+    @Data
     public static class Product {
         @Excel(header = "产品编号", columnWidth = 15)
         private String productNo;
@@ -200,6 +199,7 @@ public class ExcelExporterTest {
      * 复杂数据实体（同时包含List和Map）
      */
     @ExcelConfig(sheetName = "综合报表")
+    @Data
     public static class ComplexData {
         @Excel(header = "编号", columnWidth = 12)
         private String id;
@@ -308,6 +308,8 @@ public class ExcelExporterTest {
     /**
      * 地址信息（嵌套对象）
      */
+    @AllArgsConstructor
+    @Data
     public static class Address {
         @Excel(header = "省份")
         private String province;
@@ -321,17 +323,14 @@ public class ExcelExporterTest {
         @Excel(header = "详细地址")
         private String detail;
 
-        public Address(String province, String city, String district, String detail) {
-            this.province = province;
-            this.city = city;
-            this.district = district;
-            this.detail = detail;
-        }
+
     }
 
     /**
      * 联系信息（嵌套对象）
      */
+    @Data
+    @AllArgsConstructor
     public static class Contact {
         @Excel(header = "手机")
         private String phone;
@@ -341,18 +340,14 @@ public class ExcelExporterTest {
 
         @Excel(header = "QQ")
         private String qq;
-
-        public Contact(String phone, String email, String qq) {
-            this.phone = phone;
-            this.email = email;
-            this.qq = qq;
-        }
     }
 
     /**
      * 学生实体（包含嵌套对象）
      */
     @ExcelConfig(sheetName = "学生信息")
+    @Data
+    @AllArgsConstructor
     public static class Student {
         @Excel(header = "学号", columnWidth = 12)
         private String studentNo;
@@ -371,18 +366,13 @@ public class ExcelExporterTest {
               nestedHeaderBgColor = "#70AD47",
               nestedSubHeaderBgColor = "#E2EFDA")
         private Contact contact;
-
-        public Student(String studentNo, String name, Address address, Contact contact) {
-            this.studentNo = studentNo;
-            this.name = name;
-            this.address = address;
-            this.contact = contact;
-        }
     }
 
     /**
      * 商品项（嵌套对象）
      */
+    @Data
+    @AllArgsConstructor
     public static class Item {
         @Excel(header = "商品名称")
         private String itemName;
@@ -393,12 +383,6 @@ public class ExcelExporterTest {
         @Excel(header = "单价")
         private Double unitPrice;
 
-        public Item(String itemName, Integer quantity, Double unitPrice) {
-            this.itemName = itemName;
-            this.quantity = quantity;
-            this.unitPrice = unitPrice;
-        }
-
         public Double getTotalPrice() {
             return quantity * unitPrice;
         }
@@ -408,6 +392,8 @@ public class ExcelExporterTest {
      * 销售记录（同时包含List、Map和嵌套对象）
      */
     @ExcelConfig(sheetName = "销售记录")
+    @Data
+    @AllArgsConstructor
     public static class SalesRecord {
         @Excel(header = "记录ID", columnWidth = 12)
         private String recordId;
@@ -425,19 +411,13 @@ public class ExcelExporterTest {
 
         @Excel(header = "备注", columnWidth = 20)
         private String remarks;
-
-        public SalesRecord(String recordId, String salesperson, Customer customer, List<Item> items, String remarks) {
-            this.recordId = recordId;
-            this.salesperson = salesperson;
-            this.customer = customer;
-            this.items = items;
-            this.remarks = remarks;
-        }
     }
 
     /**
      * 客户信息（嵌套对象）
      */
+    @Data
+    @AllArgsConstructor
     public static class Customer {
         @Excel(header = "客户名称")
         private String customerName;
@@ -450,13 +430,6 @@ public class ExcelExporterTest {
 
         @Excel(header = "客户等级")
         private String level;
-
-        public Customer(String customerName, String phone, String address, String level) {
-            this.customerName = customerName;
-            this.phone = phone;
-            this.address = address;
-            this.level = level;
-        }
     }
 
     // ==================== 嵌套对象测试数据生成 ====================
@@ -533,14 +506,14 @@ public class ExcelExporterTest {
      * 测试多Sheet导出（使用链式API）
      */
     @Test
-    public void testMultiSheetExport() throws Exception {
+    public void testMultiSheetExport() {
         try {
             // 创建各Sheet数据
             List<User> users = createTestData();
             List<Order> orders = createOrderData();
             List<Student> students = createStudentData();
 
-            String filePath = "target/test-multi-sheet.xlsx";
+            String filePath = "target/test-multi-sheet-" + ts() + ".xlsx";
 
             // 使用链式API导出多个Sheet
             ExcelExporter.create()
@@ -561,14 +534,14 @@ public class ExcelExporterTest {
      * 测试多Sheet导出（使用类上的注解自动获取sheetName）
      */
     @Test
-    public void testMultiSheetExportWithAnnotation() throws Exception {
+    public void testMultiSheetExportWithAnnotation() {
         try {
             List<User> users = createTestData();
             List<Order> orders = createOrderData();
             List<Product> products = createProductData();
             List<SalesRecord> salesRecords = createSalesRecordData();
 
-            String filePath = "target/test-multi-sheet-annotation.xlsx";
+            String filePath = "target/test-multi-sheet-annotation-" + ts() + ".xlsx";
 
             // 使用类上的@ExcelConfig注解的sheetName
             ExcelExporter.create()
@@ -590,12 +563,12 @@ public class ExcelExporterTest {
      * 测试混合模式导出（单个导出和多Sheet导出）
      */
     @Test
-    public void testMixedExport() throws Exception {
+    public void testMixedExport() {
         try {
             List<User> users = createTestData();
             List<SalesRecord> salesRecords = createSalesRecordData();
 
-            String filePath = "target/test-mixed.xlsx";
+            String filePath = "target/test-mixed-" + ts() + ".xlsx";
 
             // 混合使用
             ExcelExporter.create()
