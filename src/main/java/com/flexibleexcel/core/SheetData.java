@@ -1,9 +1,12 @@
 package com.flexibleexcel.core;
 
+import lombok.Data;
+
 /**
  * Sheet数据封装类
  * 用于多Sheet导出时封装每个Sheet的数据
  */
+@Data
 public class SheetData {
 
     private String sheetName;
@@ -41,14 +44,6 @@ public class SheetData {
                 ? config.sheetName() 
                 : clazz.getSimpleName();
         return new SheetData(sheetName, clazz, dataList);
-    }
-
-    public String getSheetName() {
-        return sheetName;
-    }
-
-    public Class<?> getClazz() {
-        return clazz;
     }
 
     @SuppressWarnings("unchecked")
