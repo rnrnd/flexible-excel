@@ -5,9 +5,16 @@ import com.flexibleexcel.annotation.ExcelConfig;
 import com.flexibleexcel.core.ExcelExporter;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.FileInputStream;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -693,5 +700,172 @@ public class ExcelExporterTest {
             e.printStackTrace();
             throw e;
         }
+    }
+
+    /**
+     * 测试空 List 场景导出。
+     */
+    @Test
+    public void testEmptyListExport() {
+        List<EmptyListRecord> records = createEmptyListData();
+        String filePath = "target/test-empty-list-" + ts() + ".xlsx";
+
+        ExcelExporter.create().export(EmptyListRecord.class, records, filePath);
+        assertCellText(filePath, 0, 0, "编号");
+        assertCellText(filePath, 0, 1, "明细");
+        assertCellText(filePath, 2, 0, "EL-001");
+
+        System.out.println("空List导出完成: " + new File(filePath).getAbsolutePath());
+    }
+
+    /**
+     * 测试空 Map 场景导出。
+     */
+    @Test
+    public void testEmptyMapExport() {
+        List<EmptyMapRecord> records = createEmptyMapData();
+        String filePath = "target/test-empty-map-" + ts() + ".xlsx";
+
+        ExcelExporter.create().export(EmptyMapRecord.class, records, filePath);
+        assertCellText(filePath, 0, 0, "编号");
+        assertCellText(filePath, 0, 1, "属性");
+        assertCellText(filePath, 2, 0, "EM-001");
+
+        System.out.println("空Map导出完成: " + new File(filePath).getAbsolutePath());
+    }
+
+    /**
+     * 测试空嵌套对象场景导出。
+     */
+    @Test
+    public void testNullNestedExport() {
+        List<NullNestedRecord> records = createNullNestedData();
+        String filePath = "target/test-null-nested-" + ts() + ".xlsx";
+
+        ExcelExporter.create().export(NullNestedRecord.class, records, filePath);
+        assertCellText(filePath, 0, 0, "编号");
+        assertCellText(filePath, 0, 1, "地址");
+        assertCellText(filePath, 2, 0, "EN-001");
+
+        System.out.println("空嵌套对象导出完成: " + new File(filePath).getAbsolutePath());
+    }
+
+    @Test
+    public void testAllTypesExportContent() {
+        List<SalesRecord> records = createSalesRecordData();
+        String filePath = "target/test-all-types-content-" + ts() + ".xlsx";
+
+        ExcelExporter.create().export(SalesRecord.class, records, filePath);
+
+        assertCellText(filePath, 0, 0, "记录ID");
+        assertCellText(filePath, 0, 2, "客户信息");
+        assertCellText(filePath, 0, 6, "商品明细");
+        assertCellText(filePath, 1, 2, "客户名称");
+        assertCellText(filePath, 1, 6, "商品名称");
+        assertRowTexts(filePath, 2,
+                "R001",
+                "销售员A",
+                "阿里巴巴",
+                "400-800-0001",
+                "浙江省杭州市余杭区",
+                "VIP",
+                "iPhone 14",
+                "2",
+                "5999.0",
+                "大客户订单");
+
+        System.out.println("全类型导出完成: " + new File(filePath).getAbsolutePath());
+    }
+
+    private void assertCellText(String filePath, int rowIndex, int colIndex, String expected) {
+        Assertions.assertEquals(expected, readCellText(filePath, 0, rowIndex, colIndex));
+    }
+
+    /**
+     * 按顺序校验一整行的单元格文本，适用于复杂导出场景测试。
+     */
+    private void assertRowTexts(String filePath, int rowIndex, String... expectedValues) {
+        for (int colIndex = 0; colIndex < expectedValues.length; colIndex++) {
+            assertCellText(filePath, rowIndex, colIndex, expectedValues[colIndex]);
+        }
+    }
+
+    /**
+     * 读取指定单元格文本，空单元格统一返回空字符串。
+     */
+    private String readCellText(String filePath, int sheetIndex, int rowIndex, int colIndex) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(Files.newInputStream(Paths.get(filePath)))) {
+            Sheet sheet = workbook.getSheetAt(sheetIndex);
+            Row row = sheet.getRow(rowIndex);
+            return row != null && row.getCell(colIndex) != null
+                    ? row.getCell(colIndex).getStringCellValue()
+                    : "";
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @ExcelConfig(sheetName = "空List测试")
+    @Data
+    @AllArgsConstructor
+    public static class EmptyListRecord {
+        @Excel(header = "编号")
+        private String id;
+
+        @Excel(header = "明细")
+        private List<String> items;
+    }
+
+    @ExcelConfig(sheetName = "空Map测试")
+    @Data
+    @AllArgsConstructor
+    public static class EmptyMapRecord {
+        @Excel(header = "编号")
+        private String id;
+
+        @Excel(header = "属性")
+        private Map<String, String> attrs;
+    }
+
+    @ExcelConfig(sheetName = "空嵌套测试")
+    @Data
+    @AllArgsConstructor
+    public static class NullNestedRecord {
+        @Excel(header = "编号")
+        private String id;
+
+        @Excel(header = "地址",
+              nested = Excel.NestedMode.HORIZONTAL,
+              nestedHeaderBgColor = "#4472C4",
+              nestedSubHeaderBgColor = "#D6DCE5")
+        private Address address;
+    }
+
+    private List<EmptyListRecord> createEmptyListData() {
+        List<EmptyListRecord> records = new ArrayList<>();
+        records.add(new EmptyListRecord("EL-001", Collections.emptyList()));
+        records.add(new EmptyListRecord("EL-002", null));
+        records.add(new EmptyListRecord("EL-003", Arrays.asList("A", "B")));
+        return records;
+    }
+
+    private List<EmptyMapRecord> createEmptyMapData() {
+        List<EmptyMapRecord> records = new ArrayList<>();
+        records.add(new EmptyMapRecord("EM-001", Collections.emptyMap()));
+        records.add(new EmptyMapRecord("EM-002", null));
+
+        Map<String, String> attrs = new LinkedHashMap<>();
+        attrs.put("颜色", "蓝色");
+        attrs.put("尺寸", "L");
+        records.add(new EmptyMapRecord("EM-003", attrs));
+        return records;
+    }
+
+    private List<NullNestedRecord> createNullNestedData() {
+        List<NullNestedRecord> records = new ArrayList<>();
+        records.add(new NullNestedRecord("EN-001", null));
+        records.add(new NullNestedRecord("EN-002",
+                new Address("重庆市", "重庆市", "渝中区", "解放碑")));
+        return records;
     }
 }
